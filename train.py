@@ -38,9 +38,13 @@ def build_model():
 # Predict for a symbol
 def predict_for_symbol(symbol, df, model):
     symbol_data = df[df['symbol'] == symbol]
+    if len(symbol_data) < sequence_length + 1:
+        print(f"Not enough data for symbol {symbol}, skipping.")
+        return None
+    print(f"Processing {len(symbol_data)} rows for symbol {symbol}.")
+
+    # Prepare sequences and labels
     train_sequences, train_labels = create_sequences(symbol_data['close_normalized'].values, sequence_length)
-    
-    # Reshape sequences for LSTM (samples, time_steps, features)
     train_sequences = train_sequences.reshape((train_sequences.shape[0], sequence_length, num_features))
 
     # Train the model
@@ -81,14 +85,14 @@ def predict_next_day(model, last_sequence, steps=288):
 base_path = os.path.dirname(os.path.abspath(__file__))
 os.makedirs(base_path + "/rnn", exist_ok=True)
 
-# List of stock symbols
-stock_symbols = [
-    "ADVANC", "AOT", "AWC", "BBL", "BCP", "BDMS", "BEM", "BGRIM", "BH", "BJC",
+# List of stock symbols (remove duplicates)
+stock_symbols = list(set([
+    "GLOBAL", "ADVANC", "AOT", "AWC", "BBL", "BCP", "BDMS", "BEM", "BGRIM", "BH", "BJC",
     "BTS", "CBG", "CENTEL", "CPALL", "CPF", "CPN", "CRC", "DELTA", "EA", "EGCO",
-    "GLOBAL", "GPSC", "GULF", "HMPRO", "INTUCH", "ITC", "IVL", "KBANK", "KTB",
+    "GPSC", "GULF", "HMPRO", "INTUCH", "ITC", "IVL", "KBANK", "KTB",
     "KTC", "LH", "MINT", "MTC", "OR", "OSP", "PTT", "PTTEP", "PTTGC", "RATCH",
     "SCB", "SCC", "SCGP", "TIDLOR", "TISCO", "TLI", "TOP", "TRUE", "TTB", "TU", "WHA"
-]
+]))
 
 # Group data by symbol
 grouped = df.groupby('symbol')
@@ -100,15 +104,17 @@ model = build_model()
 all_predictions = []
 
 for symbol in stock_symbols:
-    print(f"Processing symbol: {symbol}")
     df_predictions = predict_for_symbol(symbol, df, model)
-    
+    if df_predictions is None:
+        continue
     # Save predictions for each symbol to CSV
     df_predictions.to_csv(f"{base_path}/rnn/{symbol}_predictions.csv", index=False)
     all_predictions.append(df_predictions)
 
 # Combine all predictions into one DataFrame
-final_predictions = pd.concat(all_predictions, ignore_index=True)
-final_predictions.to_csv(f"{base_path}/rnn/all_symbols_predictions.csv", index=False)
-
-print("All symbols' predictions saved.")
+if all_predictions:
+    final_predictions = pd.concat(all_predictions, ignore_index=True)
+    final_predictions.to_csv(f"{base_path}/rnn/all_symbols_predictions.csv", index=False)
+    print("All symbols' predictions saved.")
+else:
+    print("No predictions were generated.")
